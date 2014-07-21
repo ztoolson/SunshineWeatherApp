@@ -32,13 +32,13 @@ import java.net.URL;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
-import java.util.List;
 
 /**
  * A placeholder fragment containing a simple view.
  */
 public class ForecastFragment extends Fragment {
 
+    private final String LOG_TAG = ForecastFragment.class.getSimpleName();
     // Adapter between string array and ListView
     private ArrayAdapter<String> mForecastAdapter;
 
@@ -130,6 +130,7 @@ public class ForecastFragment extends Fragment {
         return rootView;
     }
 
+
     public class FetchWeatherTask extends AsyncTask<String, Void, String[]> {
 
         private final String LOG_TAG = FetchWeatherTask.class.getSimpleName();
@@ -146,15 +147,38 @@ public class ForecastFragment extends Fragment {
         }
 
         /**
-         * Prepare the weather high/lows for presentation.
+         * Prepare the weather high/lows for presentation based on settings
+         *
+         * @param high
+         * @param low
+         * @return
          */
         private String formatHighLows(double high, double low) {
-            // For presentation, assume the user doesn't care about tenths of a degree.
+            // Data is fetched in celsius by default
+            // If user prefers fahrenheit, convert values here
+            // We do this rather than fetching in fahrenheit so that the
+            // user can change this option without us having to refetch the data once
+            // we start storing values ina database
+
+            SharedPreferences sharedPrefs =
+                    PreferenceManager.getDefaultSharedPreferences(getActivity());
+            String unitType = sharedPrefs.getString(
+                    getString(R.string.pref_units_key),
+                    getString(R.string.pref_units_metric));
+
+            if (unitType.equals(getString(R.string.pref_units_imperial))) {
+                high = (high * 1.8) + 32;
+                low = (low * 1.8) + 32;
+            } else if (!unitType.equals(getString(R.string.pref_units_metric))) {
+                Log.d(LOG_TAG, "Unit type not found: " + unitType);
+            }
+
+            // round the temperatures for user convenience
             long roundedHigh = Math.round(high);
             long roundedLow = Math.round(low);
 
-            String highLowStr = roundedHigh + "/" + roundedLow;
-            return highLowStr;
+            String highLow = roundedHigh + "/" + roundedLow;
+            return highLow;
         }
 
         /**

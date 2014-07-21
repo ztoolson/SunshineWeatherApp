@@ -13,4 +13,17 @@
     <string name="pref_location_label">Location</string>
     <string name="pref_location_default" translatable="false">84121</string>
 
+    <string name="pref_units_key" translatable="false">units</string>
+    <string name="pref_units_label">Temperature Units</string>
+    <string name="pref_units_metric">Metric</string>
+    <string name="pref_units_imperial">Imperial</string>
+    <string-array name="pref_units_values">
+        <item>@string/pref_units_metric</item>
+        <item>@string/pref_units_imperial</item>
+    </string-array>
+    <string-array name="pref_units_options">
+        <item>@string/pref_units_metric</item>
+        <item>@string/pref_units_imperial</item>
+    </string-array>
+
 </resources>
