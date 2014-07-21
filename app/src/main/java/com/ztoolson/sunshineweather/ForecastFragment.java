@@ -1,8 +1,11 @@
 package com.ztoolson.sunshineweather;
 
+import android.content.Intent;
+import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.preference.PreferenceManager;
 import android.support.v4.app.Fragment;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -11,8 +14,10 @@ import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.ListView;
+import android.widget.Toast;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -24,7 +29,6 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.net.URLEncoder;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
@@ -41,6 +45,27 @@ public class ForecastFragment extends Fragment {
     public ForecastFragment() {
     }
 
+    /**
+     * Get updated weather from openweatherapi
+     */
+    private void updateWeather() {
+        FetchWeatherTask weatherTask = new FetchWeatherTask();
+
+        // Get location from settings
+        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(getActivity());
+        String location = prefs.getString(getString(R.string.pref_location_key),
+                getString(R.string.pref_location_default));
+
+        // execute looking up data
+        weatherTask.execute(location + ",USA");
+    }
+
+    @Override
+    public void onStart() {
+        super.onStart();
+        updateWeather();
+    }
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -53,6 +78,7 @@ public class ForecastFragment extends Fragment {
         inflater.inflate(R.menu.forecastfragment, menu);
     }
 
+
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         // Handle action bar item happens here. The action bar will
@@ -60,9 +86,7 @@ public class ForecastFragment extends Fragment {
         // you specify a parent activity in AndroidManifest.xml
         int id = item.getItemId();
         if (id == R.id.action_refresh) {
-            FetchWeatherTask weatherTask = new FetchWeatherTask();
-            String[] location = {"40.604389", "-111.829376" }; // latitude, longitude
-            weatherTask.execute(location);
+            updateWeather();
             return true;
         }
         return super.onOptionsItemSelected(item);
@@ -73,18 +97,7 @@ public class ForecastFragment extends Fragment {
                              Bundle savedInstanceState) {
         View rootView = inflater.inflate(R.layout.fragment_my, container, false);
 
-
-        // list to populate ListView with initial data
-        List<String> forecastArray = new ArrayList<String>();
-
-        // Fill list with dummy data to display
-        forecastArray.add("Today - Sunny - 88/63");
-        forecastArray.add("Tomorrow - Sunny - 84/59");
-        forecastArray.add("Weds - Cloudy - 73/52");
-        forecastArray.add("Thurs - Rainy - 73/54");
-        forecastArray.add("Fri - Partly Cloudy - 80/60");
-        forecastArray.add("Sat - Sunny - 95/81");
-        // initialize adapter to connect to ListView to display dummy data.
+        // initialize adapter
         mForecastAdapter =
                 new ArrayAdapter<String>(
                         // The current context (this fragment's parent context)
@@ -94,18 +107,30 @@ public class ForecastFragment extends Fragment {
                         // ID of the TextView to populate
                         R.id.list_item_forecast_textview, // refers to specific XML element with matching attribute
                         // Forecast Data
-                        forecastArray);
-
+                        new ArrayList<String>());
 
         // get a reference to the ListView, and attach this adapter to the ListView
         ListView listView = (ListView) rootView.findViewById(R.id.listview_forecast);
         listView.setAdapter(mForecastAdapter);
 
+        // add a listener to pull up details for a weather item
+        // start with toasting the same details
+        listView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+
+            @Override
+            public void onItemClick(AdapterView<?> adapterView, View view, int position, long l) {
+                String forecast = mForecastAdapter.getItem(position);
+                Toast.makeText(getActivity(), forecast, Toast.LENGTH_SHORT).show();
+                Intent intent = new Intent(getActivity(), DetailActivity.class)
+                        .putExtra(Intent.EXTRA_TEXT, forecast);
+                startActivity(intent);
+            }
+        });
 
         return rootView;
     }
 
-    public class FetchWeatherTask extends AsyncTask<String[], Void, String[]> {
+    public class FetchWeatherTask extends AsyncTask<String, Void, String[]> {
 
         private final String LOG_TAG = FetchWeatherTask.class.getSimpleName();
 
@@ -188,7 +213,7 @@ public class ForecastFragment extends Fragment {
         }
 
         @Override
-        protected String[] doInBackground(String[]... params) {
+        protected String[] doInBackground(String... params) {
 
             // if there is no zip code, there is nothing to look up. return null
             if (params.length == 0) {
@@ -215,16 +240,14 @@ public class ForecastFragment extends Fragment {
                 // http://openweathermap.org/API#forecast
                 final String FORECAST_BASE_URL =
                         "http://api.openweathermap.org/data/2.5/forecast/daily?";
-                final String LATITUDE_PARAM = "lat";
-                final String LONGITUDE_PARAM = "lon";
+                final String QUERY_PARAM = "q";
                 final String ACCURATE_PARAM = "type";
                 final String FORMAT_PARAM = "mode";
                 final String UNITS_PARAM = "units";
                 final String DAYS_PARAM = "cnt";
 
                 Uri builtUri = Uri.parse(FORECAST_BASE_URL).buildUpon()
-                        .appendQueryParameter(LATITUDE_PARAM, params[0][0])
-                        .appendQueryParameter(LONGITUDE_PARAM, params[0][1])
+                        .appendQueryParameter(QUERY_PARAM, params[0])
                         .appendQueryParameter(ACCURATE_PARAM, type)
                         .appendQueryParameter(FORMAT_PARAM, format)
                         .appendQueryParameter(UNITS_PARAM, units)
@@ -291,6 +314,11 @@ public class ForecastFragment extends Fragment {
             return null;
         }
 
+        /**
+         * Update the Adapter with updated weather retrieved in doInBackgroud
+         *
+         * @param result
+         */
         @Override
         protected void onPostExecute(String[] result) {
             if (result != null) {
@@ -298,7 +326,7 @@ public class ForecastFragment extends Fragment {
                 mForecastAdapter.clear();
 
                 // add each new forecast entry to the adapter0
-                for(String dayForecastStr: result) {
+                for (String dayForecastStr : result) {
                     mForecastAdapter.add(dayForecastStr);
                 }
                 // new data is back from the server, hooray!
